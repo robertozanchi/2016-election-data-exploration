@@ -1,0 +1,236 @@
+---
+title: "Exploration of 2016 US Presidential Campaign Contribution Data for the State of New York"
+author: "Roberto Zanchi"
+date: "April 16, 2016"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+<br>
+This project explores a dataset of 2016 US presidential campaign contributions from donors in the State of New York. The data is sourced from <http://fec.gov/disclosurep/pnational.do>.
+
+#### 1. Load data and R packages
+I start by importing the csv data downloaded from fec.gov into a data frame and loading the R packages required for analysis and visualization.
+
+```{r, echo=TRUE, message=FALSE, warning=FALSE}
+contribution_data <- read.csv("NY.csv")
+library(dplyr)
+library(ggplot2)
+```
+
+#### 2. Explore dataset structure
+The dataset includes 121,529 observations of 19 variables, as shown by running `str()` below. The only numerical variables are contribution amount `contb_receipt_amt` and file number `file_num`, the other 17 variables being categorical.
+
+```{r str}
+str(contribution_data)
+```
+
+#### 3. Explore variables of interest
+In this section I explore a selection of variables that have caught my attention.
+
+The number of observations - 121,529 - corresponds to the number of individual financial contributions made.
+
+I run `summary()` to obtain count values for categorical variables, and quartile and mean statistics for numerical variables.
+
+```{r summary, echo=TRUE}
+summary(contribution_data)
+```
+
+I decide to further explore the following variables:
+
+* candidate's name (`cand_nm`)
+* contributor's city (`contbr_city`)
+* contributor's occupation (`contbr_occupation`)
+* contribution amount (`contb_receipt_amt`)
+* contribution date (`contb_receipt_dt`)
+
+##### Candidates
+**Who are the candidates who have received campaign contributions from within the State of New York?**
+
+```{r candidates, echo=TRUE}
+levels(contribution_data$cand_nm)
+```
+
+These are the 22 presidential candidates who have received campaign contributions in the State of New York. **Explain the caveat: candiates that report 100000 USD +...**
+
+The list includes all candidates who are running active campaigns as of April 2016: Clinton and Sanders for the Democratic Party, and Cruz, Kasich and Trump for the Republican Party. The dataset does not include information about which party the candidates belong to.
+
+**How many individual campaign contributions have been made to each of the candidates?**
+
+```{r count, echo=FALSE}
+ggplot(data = contribution_data, aes(x = contribution_data$cand_nm)) +
+        geom_bar() +
+        theme(text = element_text(size=12), axis.text.x = element_text(angle=90, vjust=.5)) +
+        xlab('Presidential candidates') +
+        ylab('Number of contributions received')
+```
+
+Clinton and Sanders have received the greatest number of individual contributions. Sanders has over 50,000 contributions and Clinton almost 45,000. Carson and Cruz have received between 5,000 and 10,000. All other candidates have received less than 5,000 each. 
+
+##### Cities
+**Which cities in the State of New York made most of the contributions to candidates?**
+
+```{r}
+head(summary(contribution_data$contbr_city))
+```
+
+New York City leads in number of individual contributions with 38,229. A quick look at the data suggests that the actual value is likely to be larger, as Brooklyn, The Bronx and Staten Island - reported separately in the dataset - are New York City boroughs.
+
+##### Occupations
+**What are the occupations of the supporters who have made the greatest number of contributions?**
+
+The supporters in the State of New York who have made the greatest number of campaign contributions are those retired, with over 15,000 contributions and not employed, with over 12,500 contributions.
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+# Top 10 contributors' occupations by number of contributions excluding retired and not employed
+all_occupations = contribution_data %>%
+                filter(contbr_occupation != '',
+                       contbr_occupation != 'INFORMATION REQUESTED',
+                       contbr_occupation != 'INFORMATION REQUESTED PER BEST EFFORTS') %>%
+                group_by(contbr_occupation) %>%
+                tally() %>%
+                arrange(desc(n)) %>%
+                top_n(10)
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(x=contbr_occupation, y=n), data=all_occupations) +
+        geom_bar(stat='identity') +
+        theme(text = element_text(size=12), axis.text.x = element_text(angle=90, vjust=.5)) +
+        xlab('Occupation of contributor') +
+        ylab('Number of contributions')
+```
+
+I replotted the top 10 occupations after excluding individuals who are retired and not employed. In the new top 10, supporters who are in legal professions (attorneys and lawyers) and teachers or professors have made the largest number of contributions.
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+# Top 10 contributors' occupations by number of contributions excluding retired and not employed
+employed_occupations = contribution_data %>%
+        filter(contbr_occupation != '',
+               contbr_occupation != 'INFORMATION REQUESTED',
+               contbr_occupation != 'INFORMATION REQUESTED PER BEST EFFORTS',
+               contbr_occupation != 'RETIRED',
+               contbr_occupation != 'NOT EMPLOYED') %>%
+        group_by(contbr_occupation) %>%
+        tally() %>%
+        arrange(desc(n)) %>%
+        top_n(10)
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(x=contbr_occupation, y=n), data=employed_occupations) +
+        geom_bar(stat='identity') +
+        theme(text = element_text(size=12), axis.text.x = element_text(angle=90, vjust=.5)) +
+        xlab('Occupation of contributor') +
+        ylab('Number of contributions')
+```
+
+##### Contribution amount
+**How can the available contribution amount data be described?**
+
+Summary statistics of the complete set of 121,529 observations show:
+
+* Prevalence of contributions of small value (median of US$50 and US$116 as 3rd Quartile);
+* Mean contribution amount (US$365) higher than 3rd Quartile, suggesting long tail of values;
+* A maximum value of US$3,686,000, confirming the existence of outliers;
+* Presence of negative values (probably refunds), e.g. the minimum of US$-5,400.
+
+```{r}
+summary(contribution_data$contb_receipt_amt)
+```
+
+I visualize this data through a density plot, applying a log10 transformation to positive `contb_receipt_amt` values on the x axis and a sqrt transformation to density on the y-axis. The plot resembles a normal distribution with a long tail including values around 1e+06 (i.e. >US$1m).
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+positive_contributions = subset(contribution_data, contribution_data$contb_receipt_amt > 0)
+# Plot density of contribution amounts
+ggplot(positive_contributions, aes(x=contb_receipt_amt)) +
+        geom_density() +
+        scale_x_log10() +
+        scale_y_sqrt() +
+        xlab('Contribution amount (log10)') +
+        ylab('Density (sqrt)')
+```
+
+##### Contribution dates
+**When were the contributions made?**
+
+In order to analyse and visualize contribution dates, I convert date values in the dataset from string (e.g. "29-FEB-16") to Date format (e.g. 2016-02-29) and select observations with positive contribution amounts and non-NA date values.
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+# Convert dates from strings to the Date datatype
+contribution_data$contb_receipt_dt = as.Date(contribution_data$contb_receipt_dt, "%d-%b-%y")
+# Omitt negative amounts
+selected_dates = filter(contribution_data, contb_receipt_amt > 0,
+                        !is.na(contb_receipt_dt))
+```
+
+The filtered dataset contains 120,068 observations with contribution dates ranging from 11 October 2015 and 29 February 2016.
+
+```{r}
+summary(selected_dates$contb_receipt_dt)
+```
+
+The density plot shows exponential growth in number of contributions starting around March 2015. Quartile statistics and the plot show that 75% of all contributions were received starting October 2015 and more than half starting January 2016. 
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+# Time series density plot with contributions from October 2013 to February 2016
+ggplot(selected_dates, aes(x=contb_receipt_dt)) +
+        geom_density() +
+        xlab('Date of contribution') +
+        ylab('Density')
+```
+
+#### 4. Explore relationships between variables
+In this section I explore bi- and multivariate relationships in the data.
+
+##### Select data
+I select observations that meet the following criteria:
+
+* Positive contribution amount
+* Max contribution amount US$2,700
+
+```{r}
+select_data = filter(contribution_data,
+                     contb_receipt_amt > 0 & contb_receipt_amt <= 2700)
+```
+
+##### Contributions by occupation
+
+```{r}
+ggplot(select_data, aes(x = select_data$contbr_occupation, y = select_data$contb_receipt_amt)) +
+        geom_point()
+```
+
+
+```{r}
+# Top 10 contributors' occupations by number of contributions excluding retired and not employed
+select_employed = select_data %>%
+        filter(contbr_occupation != '',
+               contbr_occupation != 'INFORMATION REQUESTED',
+               contbr_occupation != 'INFORMATION REQUESTED PER BEST EFFORTS',
+               contbr_occupation != 'RETIRED',
+               contbr_occupation != 'NOT EMPLOYED') %>%
+        group_by(contbr_occupation) %>%
+        tally() %>%
+        arrange(desc(n)) %>%
+        top_n(10)
+```
+
+
+```{r}
+# Box plot contributions by top 10 occupations
+ggplot(aes(x=contbr_occupation, y=contb_receipt_amt), data=select_employed) +
+    geom_boxplot(outlier.colour = "red", outlier.size = 2) +
+    theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = .4)) +
+    ggtitle('Contributions by occupation (nationwide)') +
+    labs(x="", y="Amount in US$")
+```
+
+
+#### 5. Final plots and summary
+
+#### 6. Reflection

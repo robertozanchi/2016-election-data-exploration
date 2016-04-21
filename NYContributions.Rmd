@@ -1,0 +1,640 @@
+---
+title: Exploration of 2016 US Presidential Campaign Contribution Data for the State of New York
+author: "Roberto Zanchi"
+date: "April 16, 2016"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+<br>
+This project explores a dataset of 2016 US presidential campaign contributions 
+from donors in the State of New York. The data is sourced from
+<http://fec.gov/disclosurep/pnational.do>.
+
+#### 1. Load data and R packages
+I start by importing the csv data downloaded from fec.gov into a data frame and
+loading the R packages required for analysis and visualization.
+
+```{r, echo=TRUE, message=FALSE, warning=FALSE}
+contribution_data <- read.csv("NY.csv")
+library(dplyr)
+library(ggplot2)
+library(magrittr)
+```
+
+#### 2. Explore dataset structure
+The dataset includes 121,529 observations of 19 variables, as shown by running
+`str()` below. The only numerical variables are contribution amount
+`contb_receipt_amt` and file number `file_num`, the other 17 variables being
+categorical.
+
+```{r str}
+str(contribution_data)
+```
+
+#### 3. Explore variables of interest
+In this section I explore a selection of variables that have caught my attention.
+
+The number of observations - 121,529 - corresponds to the number of individual
+financial contributions made.
+
+I run `summary()` to obtain count values for categorical variables, and quartile
+and mean statistics for numerical variables.
+
+```{r summary, echo=TRUE}
+summary(contribution_data)
+```
+
+I decide to further explore the following variables:
+
+* candidate's name (`cand_nm`)
+* contributor's city (`contbr_city`)
+* contributor's occupation (`contbr_occupation`)
+* contributor's employer (`contbr_employer`)
+* contribution amount (`contb_receipt_amt`)
+* contribution date (`contb_receipt_dt`)
+
+##### Candidates
+**Who are the candidates who have received campaign contributions from within \n
+the State of New York?**
+
+```{r candidates, echo=TRUE}
+levels(contribution_data$cand_nm)
+```
+
+These 22 presidential candidates have received campaign contributions in the
+State of New York in this dataset.
+
+The list includes all candidates who are running active campaigns as of April 
+2016: Clinton and Sanders for the Democratic Party, and Cruz, Kasich and Trump
+for the Republican Party. The dataset does not include information about which
+party the candidates belong to.
+
+**How many individual campaign contributions have been made to each of the \n
+candidates?**
+
+```{r count, echo=FALSE}
+ggplot(data = contribution_data, aes(x = contribution_data$cand_nm)) +
+        geom_bar() +
+        theme(text = element_text(size=12), 
+              axis.text.x = element_text(angle=90, vjust=.5)) +
+        xlab('Presidential candidates') +
+        ylab('Number of contributions received')
+```
+
+Clinton and Sanders have received the greatest number of individual
+contributions. Sanders has over 50,000 contributions and Clinton almost 45,000.
+Carson and Cruz have received between 5,000 and 10,000. All other candidates
+have received less than 5,000 each. 
+
+##### Cities
+**Which cities in the State of New York made the greatest number of \n
+contributions?**
+
+```{r}
+head(summary(contribution_data$contbr_city))
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+# Top 10 contributors' cities by number of contributions
+top_cities = contribution_data %>%
+                group_by(contbr_city) %>%
+                tally() %>%
+                arrange(desc(n)) %>%
+                top_n(10)
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(top_cities, aes(x=contbr_city, y=n)) +
+        geom_bar(stat='identity') +
+        theme(text = element_text(size=12), 
+              axis.text.x = element_text(angle=90, vjust=.5)) +
+        xlab('Contributor city') +
+        ylab('Number of contributions received')
+```
+
+New York City leads in number of individual contributions with 38,229. A quick
+look at the data suggests that the actual value is likely to be larger, as
+Brooklyn, The Bronx and Staten Island - reported separately in the dataset - are
+New York City boroughs.
+
+##### Occupations
+**What are the occupations who have made the greatest number of contributions?**
+
+The supporters in the State of New York who have made the greatest number of
+campaign contributions are those retired, with over 15,000 contributions and not
+employed, with over 12,500 contributions.
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+# Top 10 occupations by number of contributions ex. retired and not employed
+all_occupations = contribution_data %>%
+                filter(contbr_occupation != '',
+                       contbr_occupation != 'INFORMATION REQUESTED',
+                       contbr_occupation !=
+                               'INFORMATION REQUESTED PER BEST EFFORTS') %>%
+                group_by(contbr_occupation) %>%
+                tally() %>%
+                arrange(desc(n)) %>%
+                top_n(10)
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(x=contbr_occupation, y=n), data=all_occupations) +
+        geom_bar(stat='identity') +
+        theme(text = element_text(size=12), 
+              axis.text.x = element_text(angle=90, vjust=.5)) +
+        xlab('Occupation of contributor') +
+        ylab('Number of contributions')
+```
+
+I replotted the top 10 occupations after excluding individuals who are retired
+and not employed. In the new top 10, supporters who are in legal professions
+(attorneys and lawyers) and teachers or professors have made the largest number
+of contributions.
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+# Top 10 occupations by no. of contributions excluding retired and not employed
+employed_occupations = contribution_data %>%
+        filter(contbr_occupation != '',
+               contbr_occupation != 'INFORMATION REQUESTED',
+               contbr_occupation != 'INFORMATION REQUESTED PER BEST EFFORTS',
+               contbr_occupation != 'RETIRED',
+               contbr_occupation != 'NOT EMPLOYED') %>%
+        group_by(contbr_occupation) %>%
+        tally() %>%
+        arrange(desc(n)) %>%
+        top_n(10)
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(x=contbr_occupation, y=n), data=employed_occupations) +
+        geom_bar(stat='identity') +
+        theme(text = element_text(size=12),
+              axis.text.x = element_text(angle=90, vjust=.5)) +
+        xlab('Occupation of contributor') +
+        ylab('Number of contributions')
+```
+
+**Who are the top 10 employers by number of contributions of their employees?**
+
+The top 10 employers of contributors are Clinton's campaign "Hillary for
+America", universities (City University, Cornell, Columbia, NYU), the public
+sector (City of New York, New York State, NYC Department of Education), Google
+and Goldman Sachs.
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+# Top 10 occupations by number of contributions ex. retired and not employed
+top_employers = contribution_data %>%
+                filter(contbr_employer != '',
+                       contbr_employer != 'FREELANCE',
+                       contbr_employer != 'HOMEMAKER',
+                       contbr_employer != 'RETIRED',
+                       contbr_employer != 'SELF-EMPLOYED',
+                       contbr_employer != 'NOT EMPLOYED',
+                       contbr_employer != 'N/A',
+                       contbr_employer != 'NONE',
+                       contbr_employer != 'SELF',
+                       contbr_employer != 'SELF EMPLOYED',
+                       contbr_employer != 'INFORMATION REQUESTED',
+                       contbr_employer !=
+                               'INFORMATION REQUESTED PER BEST EFFORTS') %>%
+                group_by(contbr_employer) %>%
+                tally() %>%
+                arrange(desc(n)) %>%
+                top_n(10)
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(x=contbr_employer, y=n), data=top_employers) +
+        geom_bar(stat='identity') +
+        theme(text = element_text(size=12),
+              axis.text.x = element_text(angle=90, vjust=.5)) +
+        xlab('Employer of contributor') +
+        ylab('Number of contributions')
+```
+
+##### Contribution amount
+**How can all the available contribution amount data be described?**
+
+Summary statistics of the complete set of 121,529 observations show:
+
+* Prevalence of contributions of small value (median of USD 50 and USD 116 as
+3rd Quartile);
+* Mean contribution amount (US$365) higher than 3rd Quartile, suggesting long
+tail of values;
+* A maximum value of USD 3,686,000, confirming the existence of outliers;
+* Presence of negative values (probably refunds), e.g. the minimum of USD -5,400.
+
+```{r}
+summary(contribution_data$contb_receipt_amt)
+```
+
+I visualize this data through a density plot, applying a log10 transformation to
+positive `contb_receipt_amt` values on the x axis and a sqrt transformation to
+density on the y-axis. The plot resembles a normal distribution with a long tail
+including values around 1e+06 (i.e. >USD 1m).
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+positive_contributions = subset(contribution_data,
+                                contribution_data$contb_receipt_amt > 0)
+# Plot density of contribution amounts
+ggplot(positive_contributions, aes(x=contb_receipt_amt)) +
+        geom_density() +
+        scale_x_log10() +
+        scale_y_sqrt() +
+        xlab('Contribution amount (USD) (log10)') +
+        ylab('Density (sqrt)')
+```
+
+##### Contribution dates
+**What is the number of contributions over time?**
+
+In order to analyse and visualize contribution dates, I convert date values in
+the dataset from string (e.g. "29-FEB-16") to Date format (e.g. 2016-02-29) and
+select observations with positive contribution amounts and non-NA date values.
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+# Convert dates from strings to the Date datatype
+contribution_data$contb_receipt_dt = as.Date(contribution_data$contb_receipt_dt,
+                                             "%d-%b-%y")
+# Omitt negative amounts
+selected_dates = filter(contribution_data, contb_receipt_amt > 0,
+                        !is.na(contb_receipt_dt))
+```
+
+The filtered dataset contains 120,068 observations with contribution dates
+ranging from 11 October 2013 and 29 February 2016.
+
+```{r}
+summary(selected_dates$contb_receipt_dt)
+```
+
+The frequency plot below shows how the number of individual contributions has
+grown over time. Exponential growth in number of contributions started around
+April 2015. Quartile statistics and the plot show that 75% of all contributions
+were received starting October 2015 and more than half starting January 2016.
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+# Time series with count of contributions from October 2013 to February 2016
+ggplot(selected_dates, aes(x=contb_receipt_dt))+ 
+        geom_freqpoly() +
+        xlab('Date of contribution') +
+        ylab('Count of individual contributions')
+```
+
+#### 4. Explore relationships between variables
+In this section I explore relationships between different variables.
+
+##### Data wrangling
+Before doing further analysis, I select the observations that meet the following
+criteria:
+
+* Non-negative contribution amount;
+* Max contribution amount of USD 2,700;
+* Non-NA contribution date value.
+
+According to [US Federal Election Commission rules](http://www.fec.gov/info/contriblimitschart1516.pdf)
+, USD 2,700 is the contribution limit for individuals' donations to candidates. 
+
+```{r, echo=TRUE, message=FALSE, warning=FALSE}
+# Select based on criteria
+select_data = filter(contribution_data,
+                     contb_receipt_amt > 0 & contb_receipt_amt <= 2700 &
+                     !is.na(contb_receipt_dt))
+# Convert dates from strings to the Date datatype
+select_data$contb_receipt_dt = as.Date(select_data$contb_receipt_dt, "%d-%b-%y")
+```
+
+##### Contributions in the filtered dataset
+**How can the contribution amount data in the filtered dataset be described?**
+
+The new data frame `select_data` has 119,785 observations.
+
+```{r}
+length(select_data$contb_receipt_amt)
+```
+
+The total value of reported contributions in the period October 2013 - February
+2016 is USD 35,911,638.
+
+```{r}
+sum(select_data$contb_receipt_amt)
+```
+
+The majority of contributions is in small amounts. The median is USD 50 and the
+3rd Quartile USD 121.90 over the entire period considered.
+
+```{r}
+summary(select_data$contb_receipt_amt)
+```
+
+As the plot shows, in the 4th Quartile there are certain common donation
+amounts: USD 250, 500, 1,000 and 2,700 (the maximum allowed).
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(select_data, aes(x=contb_receipt_amt)) +
+        geom_density() +
+        xlab('Contribution amount (USD)') +
+        ylab('Density')
+```
+
+##### Value of contributions over time
+**What is the value of contributions over time?** 
+
+Most of the donations from within the State of New York were made after April
+2015, which is the month both Clinton and Sanders formally [announced their candidacy](https://en.wikipedia.org/wiki/United_States_presidential_election,_2016_timeline#April).
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(select_data, aes(x=contb_receipt_dt, y=contb_receipt_amt)) +
+        geom_point(alpha = 1/50) +
+        xlab('Date of contribution') +
+        ylab('Contribution amount (USD)')
+```
+
+To understand the actual monetary value of the donations over time, I plot a
+graph with mean donation values by date.
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(select_data, aes(x=contb_receipt_dt, y=contb_receipt_amt)) +
+        stat_summary(fun.y="mean", geom="bar") +
+        xlab('Date of contribution') +
+        ylab('Contribution amount (USD (mean)')
+```
+
+While the number of individual contributions has increased over time, the mean
+value of contributions has consistently decreased over time, from mean values of
+nearly USD 2,000 in April 2014 to less than USD 200 in February 2016. Most of
+the highest value contributions were made right after the time of candidacy
+announcement for Clinton and Sanders in April 2015.
+
+##### Value of contributions by city
+**What is the total value of contributions for the top 10 cities?**
+
+I explore the value of contributions by city by plotting the total value
+(sum of `contb_receipt_amt`) of individual contributions for the top 10 cities
+by number of contributions.
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+# Get contributions by occupation
+top_cities_value = filter(select_data,
+                          contbr_city %in%
+                                  top_cities[['contbr_city']])
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(top_cities_value, aes(x=contbr_city, y=contb_receipt_amt)) +
+        stat_summary(fun.y="sum", geom="bar") +
+        xlab('Cities') +
+        ylab('Total contributions (USD)') +
+        theme(legend.position="none", 
+              axis.text.x = element_text(angle=90, vjust=.5))
+```
+
+New York City contributed almost USD 20 million of the total USD 35,911,63 in
+the filtered dataset. Another USD 2.5 million were contributes by supporters in
+Brooklyn, also part of New York City.
+
+##### Number of contributions by candidate
+For this exploration, I select the candidates who are still running active
+campaigns: Clinton, Cruz, Kasich, Sanders and Trump.
+
+```{r}
+selected_candidates = filter(select_data,
+                        cand_nm == "Clinton, Hillary Rodham" |
+                                cand_nm == "Cruz, Rafael Edward 'Ted'" |
+                                cand_nm == "Kasich, John R." |
+                                cand_nm == "Sanders, Bernard" |
+                                cand_nm == "Trump, Donald J.")
+```
+
+**How many contributions has each candidate received in the period?**
+
+This bar chart is a subset of the first graph
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(selected_candidates, aes(x=cand_nm)) +
+        geom_bar(aes(fill = cand_nm)) +
+        theme(legend.position="none") +
+        theme(text = element_text(size=12), 
+              axis.text.x = element_text(angle=90, vjust=.5)) +
+        xlab('Presidential candidates') +
+        ylab('Number of contributions received')
+```
+
+**How is number of contributions distributed over the period for each candidate?**
+
+I use a density diagram to see how each candidate's total contributions are
+distributed over the period. 
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+# Time series density plot with contributions from October 2013 to February 2016
+ggplot(selected_candidates, aes(x=contb_receipt_dt)) +
+        geom_density(aes(color = cand_nm)) +
+        xlab('Date of contribution') +
+        ylab('Density') +
+        theme(legend.title=element_blank(), 
+              legend.text = element_text(size = 8),
+              legend.position="bottom",
+              legend.direction="horizontal")
+```
+
+##### Value of contributions by candidate
+**What is the value of the contributions received by each candidate?**
+
+The mean value of contributions received by candidates in the overall period is
+plotted below. Kasich, who had one of the smallest numbers of contributions, has
+the highest mean value of almost USD 1,000. He is followed by Clinton with an
+average contribution value of almost USD 500. Sanders has the smallest mean
+value of contributions, less than USD 100.
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(selected_candidates, aes(x=cand_nm, y=contb_receipt_amt)) +
+        stat_summary(fun.y="mean", geom="bar", 
+                     aes(fill = selected_candidates$cand_nm)) +
+        xlab('Candidates') +
+        ylab('Contribution amount (USD) (mean)') +
+        theme(legend.position="none", 
+              axis.text.x = element_text(angle=90, vjust=.5))
+```
+
+I then use boxplots to explore the distribution of the value of contribution
+received by each candidate.
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(x=cand_nm, y=contb_receipt_amt), data=selected_candidates) +
+        geom_boxplot(aes(fill = cand_nm)) +
+        xlab('Candidates') +
+        ylab('Contribution amount (USD) (boxplot)') +
+        theme(legend.position="none") +
+        theme(text = element_text(size=10), 
+              axis.text.x = element_text(angle=90, vjust=.5))
+```
+
+The boxplots show that most of the contributions have small median value and are
+concentrated around the median for Clinton, Cruz, Sanders and Trump. While
+having received few contributions, Kasich has the highest value median
+contribution.
+
+##### Contributions by occupation
+**What is the value of the contributions made by occupation?**
+
+In order to explore the value of contributions by occupation I plot their mean
+values.
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+# Get contributions by occupation
+contbs_top_occups = filter(select_data,
+                           contbr_occupation %in%
+                               all_occupations[['contbr_occupation']])
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(contbs_top_occups, aes(x=contbr_occupation, y=contb_receipt_amt)) +
+        stat_summary(fun.y="mean", geom="bar") +
+        xlab('Occupations') +
+        ylab('Contribution amount (USD (mean)') +
+        theme(legend.position="none", 
+              axis.text.x = element_text(angle=90, vjust=.5))
+```
+
+Homemakers have the highest mean contribution value of USD 1,000, followed by
+lawyers and attorneys each with mean contributions of over USD 500, and
+consultants with mean contribution just below USD 500.
+
+Boxplots then allow us to explore the distribution of contribution value by
+occupation.
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+# Box plot contributions by occupation
+ggplot(contbs_top_occups, aes(x=contbr_occupation, y=contb_receipt_amt)) +
+    geom_boxplot() +
+    theme(axis.text.x = element_text(angle = 90, vjust = .5)) +
+        ylab('Contribution amount (USD) (boxplot)') +
+        xlab('Occupation of contributor')
+```
+
+Housemakers also have the highest median contribution.
+
+#### 5. Final plots and summary
+
+In this section I present three of the plots explored in the previous section
+with some additional comments.
+
+##### 1. Trend in value of contributions
+**As the number of contributions grows, their mean value is declining**
+
+One of the research questions in the exploration was about how value of
+contributions changed over time. To answer it, I  plotted a bar chart with mean
+contributon amount for each day of the campaign, and a smoothed conditional mean
+line to highlight the trend.
+
+I discovered that, while the number of contributions per day has grown since
+April 2015, their mean value has been steadily declining. A possible explanation
+is that contributions of smaller amount have grown faster than the others.
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(select_data, aes(x=contb_receipt_dt, y=contb_receipt_amt)) +
+        stat_smooth() +
+        stat_summary(fun.y="mean", geom="bar") +
+        xlab('Date of contribution') +
+        ylab('Contribution amount (USD) (mean)') +
+        ggtitle("Mean contribution amount over time")
+```
+
+##### 2. Popularity of candidates
+**All candidates have higher density of contributions between December 2015 \n 
+and  February 2016**
+
+Another key question was about how the number of contributions has varied over
+time for each candidate. I used density plots to visualize how the number of
+contributions is distributed over time, independently of their absolute value.
+
+For all five selected candidates the density of contributions has risen since
+December 2015. Sanders has a higher proporion of contributions made to him
+between January and February 2016 than any other candidate.
+
+Could this mean that the popularity of Sanders has grown faster than other
+candidates' in the period? Further investigation would be required to establish
+how this phenomenon is significantly related to popularity.
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(selected_candidates, aes(x=contb_receipt_dt)) +
+        geom_density(aes(color = cand_nm)) +
+        xlab('Date of contribution') +
+        ylab('Density of contributions for each candidate') +
+        theme(legend.title=element_blank(),
+              legend.text = element_text(size = 8),
+              legend.position="bottom",
+              legend.direction="horizontal") +
+        ggtitle("Density plot of contributions for each candidate")
+```
+
+##### 3. The greatest contributors
+**Housemakers have the highest mean and median contribution values**
+
+A third question in the exploration was about how the value of contributions
+made is related to the occupation of supporters. I visualized this through
+boxplots and mean contribution value for the top 10 occupations by number of
+contributions. Mean in blue and outliers in red.
+
+Housemaker supporters have the highest median and mean contribution value of all
+occupations in the top 10. All other professions also have smaller variance,
+and mean values beyond the 3rd Quartile, as a result of outlier contribution
+values up to the maximum of USD 2,700.
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(contbs_top_occups, aes(x=contbr_occupation, y=contb_receipt_amt)) +
+    geom_boxplot(outlier.colour = "red", outlier.size = .5) +
+        stat_summary(fun.y=mean, geom="point", colour = "blue", size = 2) +
+        theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = .5)) +
+        ylab('Contribution distribution (boxplot) / mean (blue)') +
+        xlab('Occupation of contributor') +
+        ggtitle("Distribution and mean of contributions by occupation")
+```
+
+#### 6. Reflection
+
+**Summary of the exploration process**
+
+I decided to explore a dataset of financial contribution to 2016 US presidential
+candidates made available by the US Federal Election Commission. I selected the
+available data for the State of New York.
+
+After loading an exploring the structure of the dataset in RStudio, I performed
+univariate exploration of selected variables, followed by exploration between
+selected variables.
+
+In particular, I focused on:
+
+* Number and value of the contributions;
+* How number and value vary over time;
+* The five candidates with active campaigns as of April 2016;
+* Top 10 contributor occupations by number of contributions made;
+* Top 10 cities by number of contributions made.
+
+I then selected three plots and provided additional comments.
+
+**Important choices made**
+
+The most important choices I made with in data wrangling and analysis are:
+
+* I excluded the contributions of value greater than USD 2,700;
+* I focused my analysis on the five candidates with active campaigns;
+* I excluded retired and non-employed contribitors from occupation statistics.
+
+**Challenges**
+
+The single greatest challenge in this data exploration has been working with a
+large number of categorical variables, and only contribution value as a
+numerical variable.
+
+**Ideas for future research**
+
+Ideas for future research could be:
+
+* Extending the analysis to include multiple US states;
+* Exploring the data about candidates who no longer have active campaigns, for
+comparison.
